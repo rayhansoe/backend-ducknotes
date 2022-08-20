@@ -9,20 +9,34 @@ const userSchema = new Schema(
 		},
 
 		email: {
-			type: String,
-			required: [true, 'Please add an email.'],
+			type: String || null,
 			unique: true,
 		},
 
 		password: {
-			type: String,
-			required: [true, 'Please add an password.'],
+			type: String || null,
 		},
 
 		username: {
 			type: String,
-			required: [true, 'Please add an username.'],
 			unique: true,
+		},
+
+		gitHubUserId: {
+			type: Number || null,
+			unique: true,
+		},
+
+		status: {
+			type: String,
+			enum: ['Pending', 'Active'],
+			default: 'Pending',
+		},
+
+		role: {
+			type: String,
+			enum: ['User', 'Admin'],
+			default: 'User',
 		},
 
 		devices: {

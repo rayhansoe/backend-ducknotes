@@ -1,10 +1,28 @@
+const moment = require('moment')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const asyncHandler = require('express-async-handler')
 
 const User = require('../models/userModel')
 const Device = require('../models/deviceModel')
+const Confirmation = require('../models/confirmModel')
+
+const { sendLog } = require('../utils/discord-utils')
+const { getGitHubUser } = require('../api/github-adapter')
 const { buildTokens, setTokens } = require('../utils/token-utils')
+const {
+	buildCode,
+	sendConfirmationEmail,
+	sendCreateAccoutInfo,
+	sendLoginAccoutInfo,
+} = require('../utils/email-utils')
+const {
+	getUserByGitHubId,
+	createUser,
+	getUserByGitHubEmail,
+	checkUserDevices,
+	findOrCreateDevice,
+} = require('../utils/user-utils')
 
 // @desc Register User
 // @route POST /api/users
@@ -45,43 +63,38 @@ const registerUser = asyncHandler(async (req, res) => {
 	const salt = await bcrypt.genSalt(10)
 	const hashedPassword = await bcrypt.hash(password, salt)
 
-	// Create User || tambah device populate
-	const user = await User.create({
-		name,
-		email,
-		username,
-		password: hashedPassword,
-	})
-
-	// check if create user fail.
-	if (!user) {
-		res.status(400)
-		throw new Error('Invalid user data.')
-	}
-
 	try {
+		// Create User || tambah device populate
+		const user = await User.create({
+			name,
+			email,
+			username,
+			password: hashedPassword,
+		})
+
+		// check if create user fail.
+		if (!user) {
+			res.status(400)
+			throw new Error('Invalid user data.')
+		}
+
 		// collect user device from request header
 		const userAgent = req.headers['user-agent'].toString()
 
+		// data user
+		const { _id, username, name } = user
+
 		// build tokens
-		const { accessToken, refreshToken } = buildTokens(user._id)
+		const { accessToken, refreshToken } = buildTokens(_id)
 
-		// find existing user device or create a new one.
-		const device = await Device.create({
-			device: userAgent,
-			user: user._id,
-			token: refreshToken,
-		})
+		// find or create user device
+		await findOrCreateDevice(res, userAgent, _id, refreshToken)
 
-		// if device fail.
-		if (!device) {
-			res.status(401)
-			throw new Error('Unauthorized: Invalid Credentials.')
-		}
+		// info user by email
+		sendCreateAccoutInfo(user.name, user.email)
 
-		// save data
-		user.devices.push(device)
-		await user.save()
+		// log discord
+		sendLog(`New account has been created. ID: ${user.id}`)
 
 		// set tokens
 		setTokens(res, accessToken, refreshToken)
@@ -93,15 +106,87 @@ const registerUser = asyncHandler(async (req, res) => {
 		res.json({
 			accessToken,
 			userProfile: {
-				_id: user._id,
-				username: user.username,
-				name: user.name,
+				_id,
+				username,
+				name,
 			},
 		})
 	} catch (error) {
 		// if failed to find or load the loan data.
 		res.status(424)
 		throw new Error('Failed to load this loan data.')
+	}
+})
+
+// @desc OAuth with GitHub
+// @route POST /api/users/github
+// @access PUBLIC
+const OAuthGitHub = asyncHandler(async (req, res) => {
+	// collect code from auth
+	const { code } = req.query
+
+	// if there is no code
+	if (!code) {
+		res.status(401)
+		throw new Error('Unauthorized: Invalid Credentials.')
+	}
+
+	try {
+		// collect user device from request headers
+		const userAgent = req.headers['user-agent'].toString()
+
+		// get GitHub user from code
+		const gitHubUser = await getGitHubUser(code)
+
+		// find saved user by id or email
+		let user = await getUserByGitHubId(gitHubUser.id)
+		if (!user && gitHubUser.email) user = await getUserByGitHubEmail(gitHubUser)
+
+		// if there is no saved user
+		if (!user) {
+			user = await createUser({
+				name: gitHubUser.name,
+				username: gitHubUser.login,
+				gitHubUserId: gitHubUser.id,
+				avatar: gitHubUser.avatar_url,
+			})
+		}
+
+		// data user
+		const { _id, username, name } = user
+
+		// build tokens
+		const { accessToken, refreshToken } = buildTokens(user._id)
+
+		// check user devices
+		await checkUserDevices(res, _id)
+
+		// find or create user device
+		await findOrCreateDevice(res, userAgent, _id, refreshToken)
+
+		// log discord
+		sendLog(`This account is logged in by GitHub service. ID: ${user.id}`)
+
+		// set tokens
+		setTokens(res, accessToken, refreshToken)
+
+		// set status code
+		res.status(201)
+
+		// set response json
+		res.json({
+			accessToken,
+			userProfile: {
+				_id,
+				username,
+				name,
+			},
+		})
+	} catch (error) {
+		// if failed to find or load the loan data.
+		console.log(error)
+		res.status(424)
+		throw new Error('Failed to load this data.')
 	}
 })
 
@@ -128,38 +213,21 @@ const loginUser = asyncHandler(async (req, res) => {
 
 		// collect user data
 		const { _id, username, name } = user
-		const userDevices = await User.findById(_id).populate('devices').lean()
-
-		// if user devices limit.
-		if (userDevices && userDevices > 5) {
-			res.status(401)
-			throw new Error('Your Devices is limit. Logout or tell admin.')
-		}
 
 		// build tokens
 		const { accessToken, refreshToken } = buildTokens(user._id)
 
-		// create a new one or find saved device
-		const device =
-			(await Device.findOne({ device: userAgent, user: _id })) ||
-			(await Device.create({
-				device: userAgent,
-				user: _id,
-				token: refreshToken,
-			}))
+		// check user devices
+		await checkUserDevices(res, _id)
 
-		// check device
-		if (!device) {
-			res.status(401)
-			throw new Error('Unauthorized: Invalid Credentials.')
-		}
+		// find or create user device
+		await findOrCreateDevice(res, userAgent, _id, refreshToken)
 
-		// save user
-		const isSaved = userDevices.devices.find((d) => `${d._id}` === `${device._id}`)
-		if (!isSaved) {
-			user.devices.push(device._id)
-			await user.save()
-		}
+		// send login info to email user
+		sendLoginAccoutInfo(user.name, user.email)
+
+		// log discord
+		sendLog(`This account is logged in. ID: ${user.id}`)
 
 		// set tokens
 		setTokens(res, accessToken, refreshToken)
@@ -178,8 +246,110 @@ const loginUser = asyncHandler(async (req, res) => {
 		})
 	} catch (error) {
 		// if failed to find or load the loan data.
+		console.log(error)
 		res.status(424)
-		throw new Error('Failed to load this loan data.')
+		throw new Error('Failed to load this data.')
+	}
+})
+
+// @desc Resend Email Verification
+// @route GET /api/resend/
+// @access PRIVATE
+const resendEmailVerification = asyncHandler(async (req, res) => {
+	const user = req.user
+
+	let savedConfirmationCode = await Confirmation.findOne({ user: user._id })
+
+	if (savedConfirmationCode && savedConfirmationCode.expiredAt > moment(new Date()).toDate()) {
+		// set status code
+		res.status(200)
+
+		// set response json
+		res.json({
+			message: 'wait until the cooldown is over',
+			cooldown: savedConfirmationCode.expiredAt,
+		})
+
+		return
+	}
+
+	// if confirmation code is expired
+	if (savedConfirmationCode && savedConfirmationCode.expiredAt < moment(new Date()).toDate()) {
+		await savedConfirmationCode.delete()
+	}
+
+	// confirmation email
+	const { confirmationCode, expiredAt } = buildCode(user._id)
+	savedConfirmationCode = await Confirmation.create({
+		user: user._id,
+		confirmationCode,
+		expiredAt,
+	})
+	sendConfirmationEmail(user._id, user.name, user.email, confirmationCode)
+
+	// send discord
+	sendLog(`Send Email Verification. ID: ${user.id}`)
+
+	// set status code
+	res.status(200)
+
+	// set response json
+	res.json({
+		message: 'Check your email.',
+		cooldown: savedConfirmationCode.expiredAt,
+	})
+})
+
+// @desc handle Verification Account
+// @route POST /api/users/verify
+// @access KINDA PRIVATE
+const verifyAccount = asyncHandler(async (req, res) => {
+	const { id, confirmationCode } = req.params
+
+	const savedConfirmationCode = await Confirmation.findOne({ confirmationCode })
+
+	// if confirmation code is expired
+	if (savedConfirmationCode && savedConfirmationCode.expiredAt < moment(new Date()).toDate()) {
+		await savedConfirmationCode.delete()
+	}
+
+	try {
+		const user = await User.findById(id)
+		const decoded = jwt.verify(confirmationCode, process.env.CONFIRMATION_CODE_SECRET)
+
+		// if id and confirmation code is not equal
+		if (user.id !== decoded.id) {
+			res.status(403)
+			throw new Error('Who are you!!!')
+		}
+
+		// if user is already active
+		if (user.status === 'Active') {
+			res.status(200)
+			res.json({
+				message: 'Your account is already active.',
+			})
+		}
+
+		// activate the user
+		user.status = 'Active'
+		await user.save()
+
+		// then delete saved confirmation code
+		await savedConfirmationCode.delete()
+
+		// log discord
+		sendLog(`This account has been verified successfully. ID: ${user.id}`)
+
+		res.status(201)
+
+		res.json({
+			message: 'User account activated successfully.',
+		})
+	} catch (error) {
+		console.log(error)
+		res.status(403)
+		throw new Error('Not Authorized.')
 	}
 })
 
@@ -214,6 +384,9 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
 
 		// set tokens
 		setTokens(res, accessToken, false)
+
+		// send log
+		sendLog(`This account is successfully refreshed the access token. ID: ${user.id}`)
 
 		// set code
 		res.status(200)
@@ -274,6 +447,67 @@ const logout = asyncHandler(async (req, res) => {
 	await user.save()
 	await device.remove()
 
+	// send log
+	sendLog(`This account is successfully logged out. ID: ${user.id}`)
+
+	// clear tokens cookie
+	res.clearCookie('refresh', { httpOnly: true, sameSite: 'None', secure: true })
+	res.clearCookie('access', { httpOnly: true, sameSite: 'None', secure: true })
+
+	// set response
+	res.json({
+		message: `Success Logout.`,
+	})
+
+	// set status code
+	res.status(204)
+})
+
+// @desc logout all user
+// @route DELETE /api/users/logout
+// @access PRIVATE
+const logoutAll = asyncHandler(async (req, res) => {
+	// collect user device
+	const userAgent = req.headers['user-agent'].toString()
+
+	// collect cookies
+	const cookies = req.cookies
+
+	// check jwt in cookies
+	if (!cookies?.refresh || !cookies?.access) {
+		res.sendStatus(204) // Uauthorized
+		throw new Error('No Content')
+	}
+
+	// collect refresh token in cookie
+	const refreshToken = cookies.refresh
+
+	// user
+	const user = req.user
+
+	// find user device
+	const device = await Device.findOne({
+		device: userAgent,
+		user: user._id,
+		token: refreshToken,
+	})
+
+	// check device and user
+	if (!device || !user) {
+		res.status(400)
+		throw new Error('Device or User not match.')
+	}
+
+	// remove target user device and all devices
+	const newDevice = user.devices.filter((id) => JSON.stringify(id) !== JSON.stringify(device._id))
+	user.devices = newDevice
+	await user.save()
+	await device.remove()
+	await Device.deleteMany()
+
+	// send log
+	sendLog(`Log out all is successfully succeed by DEV. DEV: ${user.id}`)
+
 	// clear tokens cookie
 	res.clearCookie('refresh', { httpOnly: true, sameSite: 'None', secure: true })
 	res.clearCookie('access', { httpOnly: true, sameSite: 'None', secure: true })
@@ -290,9 +524,10 @@ const logout = asyncHandler(async (req, res) => {
 module.exports = {
 	registerUser,
 	loginUser,
-	checkUser,
-	// getUsers,
-	// getUserProfile,
-	logout,
+	OAuthGitHub,
+	verifyAccount,
+	resendEmailVerification,
 	handleRefreshToken,
+	logout,
+	logoutAll,
 }

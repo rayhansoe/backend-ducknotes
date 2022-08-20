@@ -12,9 +12,9 @@ const TokenExpiration = {
 const signAccessToken = (id) => jwt.sign(id, accessSecret, { expiresIn: TokenExpiration.Access })
 const signRefreshToken = (id) => jwt.sign(id, refreshSecret)
 
-export const buildTokens = (id) => {
-	const accessToken = signAccessToken(id)
-	const refreshToken = signRefreshToken(id)
+const buildTokens = (id) => {
+	const accessToken = signAccessToken({ id })
+	const refreshToken = signRefreshToken({ id })
 
 	return { accessToken, refreshToken }
 }
@@ -37,7 +37,12 @@ const refreshTokenCookieOptions = {
 	maxAge: TokenExpiration.Refresh * 1000,
 }
 
-export const setTokens = (res, access, refresh) => {
+const setTokens = (res, access, refresh) => {
 	res.cookie('access', access, accessTokenCookieOptions)
 	if (refresh) res.cookie('refresh', refresh, refreshTokenCookieOptions)
+}
+
+module.exports = {
+	buildTokens,
+	setTokens,
 }

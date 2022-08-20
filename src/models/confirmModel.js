@@ -1,7 +1,7 @@
 const mongoose = require('mongoose')
 const { Schema, model } = mongoose
 
-const deviceSchema = mongoose.Schema(
+const confirmSchema = new Schema(
 	{
 		user: {
 			type: Schema.Types.ObjectId,
@@ -9,13 +9,13 @@ const deviceSchema = mongoose.Schema(
 			required: [true, 'Please add a text value'],
 		},
 
-		device: {
+		confirmationCode: {
 			type: String,
 			required: [true, 'Please add a text value'],
 		},
 
-		token: {
-			type: String,
+		expiredAt: {
+			type: Schema.Types.Date,
 			required: [true, 'Please add a text value'],
 		},
 	},
@@ -25,4 +25,4 @@ const deviceSchema = mongoose.Schema(
 	}
 )
 
-module.exports = model('Device', deviceSchema)
+module.exports = model('Confirm', confirmSchema)
