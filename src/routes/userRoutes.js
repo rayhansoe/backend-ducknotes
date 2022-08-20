@@ -10,6 +10,7 @@ const {
 	resendEmailVerification,
 	handleRefreshToken,
 	logout,
+	logoutAll,
 } = require('../controllers/userControllers')
 
 // middlewares

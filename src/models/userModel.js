@@ -9,12 +9,13 @@ const userSchema = new Schema(
 		},
 
 		email: {
-			type: String || null,
+			type: String,
 			unique: true,
+			sparse: true,
 		},
 
 		password: {
-			type: String || null,
+			type: String,
 		},
 
 		username: {
@@ -23,8 +24,13 @@ const userSchema = new Schema(
 		},
 
 		gitHubUserId: {
-			type: Number || null,
+			type: Number,
 			unique: true,
+			sparse: true,
+		},
+
+		avatar: {
+			type: String,
 		},
 
 		status: {
@@ -37,12 +43,6 @@ const userSchema = new Schema(
 			type: String,
 			enum: ['User', 'Admin'],
 			default: 'User',
-		},
-
-		devices: {
-			type: [Schema.Types.ObjectId],
-			ref: 'Device',
-			unique: true,
 		},
 	},
 

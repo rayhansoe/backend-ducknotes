@@ -23,7 +23,7 @@ const createUser = async (userDocument) => {
 		...userDocument,
 	})
 
-	if (user) {
+	if (user.email) {
 		sendCreateAccoutInfo(user.name, user.email)
 	}
 
@@ -56,7 +56,7 @@ const getUserByGitHubEmail = async (gitHubUser) => {
 	return user
 }
 
-const checkUserDevices = async (userId) => {
+const checkUserDevices = async (res, userId) => {
 	const devices = await Device.find({ user: userId })
 
 	// if user devices limit.

@@ -66,9 +66,9 @@ const registerUser = asyncHandler(async (req, res) => {
 	try {
 		// Create User || tambah device populate
 		const user = await User.create({
-			name,
-			email,
-			username,
+			name: req.body?.name,
+			email: req.body?.email,
+			username: req.body?.username,
 			password: hashedPassword,
 		})
 
@@ -112,9 +112,10 @@ const registerUser = asyncHandler(async (req, res) => {
 			},
 		})
 	} catch (error) {
-		// if failed to find or load the loan data.
+		// if failed to find or load the User data.
+		console.log(error)
 		res.status(424)
-		throw new Error('Failed to load this loan data.')
+		throw new Error('Failed to load this user data.')
 	}
 })
 
@@ -149,6 +150,7 @@ const OAuthGitHub = asyncHandler(async (req, res) => {
 				username: gitHubUser.login,
 				gitHubUserId: gitHubUser.id,
 				avatar: gitHubUser.avatar_url,
+				status: 'Active',
 			})
 		}
 
@@ -183,7 +185,7 @@ const OAuthGitHub = asyncHandler(async (req, res) => {
 			},
 		})
 	} catch (error) {
-		// if failed to find or load the loan data.
+		// if failed to find or load the User data.
 		console.log(error)
 		res.status(424)
 		throw new Error('Failed to load this data.')
@@ -245,7 +247,7 @@ const loginUser = asyncHandler(async (req, res) => {
 			},
 		})
 	} catch (error) {
-		// if failed to find or load the loan data.
+		// if failed to find or load the User data.
 		console.log(error)
 		res.status(424)
 		throw new Error('Failed to load this data.')
@@ -442,9 +444,6 @@ const logout = asyncHandler(async (req, res) => {
 	}
 
 	// remove target user device
-	const newDevice = user.devices.filter((id) => JSON.stringify(id) !== JSON.stringify(device._id))
-	user.devices = newDevice
-	await user.save()
 	await device.remove()
 
 	// send log
@@ -499,9 +498,6 @@ const logoutAll = asyncHandler(async (req, res) => {
 	}
 
 	// remove target user device and all devices
-	const newDevice = user.devices.filter((id) => JSON.stringify(id) !== JSON.stringify(device._id))
-	user.devices = newDevice
-	await user.save()
 	await device.remove()
 	await Device.deleteMany()
 
