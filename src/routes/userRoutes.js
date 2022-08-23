@@ -11,15 +11,24 @@ const {
 	handleRefreshToken,
 	logout,
 	logoutAll,
+	googleHandler,
 } = require('../controllers/userControllers')
+const { getGoogleAuthURL } = require('../api/google-adapter')
 
 // middlewares
 const { protect, semiProtected, protectDev } = require('../middlewares/authMiddleware')
 const { checkIsVerified } = require('../middlewares/confirmMiddleware')
+const { getGitHubAuthURL } = require('../api/github-adapter')
 
 // routes
-// router.route('/google').post() // later
 // router.route('/:username').get()
+router.get('/google/url', (req, res) => {
+	res.send(getGoogleAuthURL())
+})
+router.route('/google/').get(googleHandler)
+router.get('/github/url', (req, res) => {
+	res.send(getGitHubAuthURL())
+})
 router.route('/github').get(OAuthGitHub)
 router.route('/register').post(registerUser)
 router.route('/login').post(loginUser)

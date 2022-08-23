@@ -35,6 +35,7 @@ const protect = asyncHandler(async (req, res, next) => {
 				next()
 		} catch (error) {
 			res.status(403)
+			console.log(error)
 			throw new Error('Not Authorized.')
 		}
 	}
@@ -88,7 +89,7 @@ const semiProtected = asyncHandler(async (req, res, next) => {
 const protectDev = asyncHandler(async (req, res, next) => {
 	const user = req.user
 
-	if (user.role !== 'Admin' || user.role !== 'Dev') {
+	if (!user.role === 'Admin' || !user.role === 'Dev') {
 		res.status(403)
 		throw new Error('Forbidden!!!')
 	}

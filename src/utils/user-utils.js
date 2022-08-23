@@ -1,7 +1,11 @@
 const _ = require('lodash')
 const User = require('../models/userModel')
 const Device = require('../models/deviceModel')
-const { sendCreateAccoutInfo, sendLoginAccoutInfo } = require('./email-utils')
+const {
+	sendCreateAccoutInfo,
+	sendLoginAccoutInfo,
+	sendOverrideAccoutInfo,
+} = require('./email-utils')
 
 const createUser = async (userDocument) => {
 	const savedUserByUsername = await User.findOne({ username: userDocument.username })
@@ -25,6 +29,29 @@ const createUser = async (userDocument) => {
 
 	if (user.email) {
 		sendCreateAccoutInfo(user.name, user.email)
+	}
+
+	return user
+}
+
+const getUserByGoogleId = async (googleUserId) => {
+	const user = await User.findOne({ googleUserId })
+
+	if (user) sendLoginAccoutInfo(user.name, user.email)
+
+	return user
+}
+
+const getUserByGoogleEmail = async (googleUser) => {
+	const user = await User.findOne({ email: googleUser.email })
+
+	if (user) {
+		user.googleUserId = googleUser.id
+		user.avatar = user.avatar ? user.avatar : googleUser.picture
+		user.status = 'Active'
+		await user.save()
+
+		sendOverrideAccoutInfo(user.name, user.email, 'Google')
 	}
 
 	return user
@@ -85,6 +112,8 @@ const findOrCreateDevice = async (res, userAgent, id, refreshToken) => {
 
 module.exports = {
 	createUser,
+	getUserByGoogleId,
+	getUserByGoogleEmail,
 	getUserByGitHubId,
 	getUserByGitHubEmail,
 	checkUserDevices,

@@ -29,6 +29,12 @@ const userSchema = new Schema(
 			sparse: true,
 		},
 
+		googleUserId: {
+			type: Number,
+			unique: true,
+			sparse: true,
+		},
+
 		avatar: {
 			type: String,
 		},

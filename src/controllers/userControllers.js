@@ -22,7 +22,10 @@ const {
 	getUserByGitHubEmail,
 	checkUserDevices,
 	findOrCreateDevice,
+	getUserByGoogleId,
+	getUserByGoogleEmail,
 } = require('../utils/user-utils')
+const { getGoogleUser } = require('../api/google-adapter')
 
 // @desc Register User
 // @route POST /api/users
@@ -116,6 +119,79 @@ const registerUser = asyncHandler(async (req, res) => {
 		console.log(error)
 		res.status(424)
 		throw new Error('Failed to load this user data.')
+	}
+})
+
+// @desc OAuth with Google
+// @route POST /api/users/google
+// @access PUBLIC
+const googleHandler = asyncHandler(async (req, res) => {
+	const { code } = req.query
+
+	// if there is no code
+	if (!code) {
+		res.status(401)
+		throw new Error('Unauthorized: Invalid Credentials.')
+	}
+
+	try {
+		// collect user device from request headers
+		const userAgent = req.headers['user-agent'].toString()
+
+		// get GitHub user from code
+		const googleUser = await getGoogleUser(code)
+
+		// find saved user by id or email
+		let user = await getUserByGoogleId(googleUser.id)
+		if (!user && googleUser.email) user = await getUserByGoogleEmail(googleUser)
+
+		// if there is no saved user
+		if (!user) {
+			user = await createUser({
+				name: googleUser.name,
+				email: googleUser.email,
+				username: googleUser.given_name,
+				googleUserId: googleUser.id,
+				avatar: googleUser.picture,
+				status: 'Active',
+			})
+		}
+
+		// data user
+		const { _id, username, name } = user
+
+		// build tokens
+		const { accessToken, refreshToken } = buildTokens(user._id)
+
+		// check user devices
+		await checkUserDevices(res, _id)
+
+		// find or create user device
+		await findOrCreateDevice(res, userAgent, _id, refreshToken)
+
+		// log discord
+		sendLog(`This account is logged in by Google service. ID: ${user.id}`)
+
+		// set tokens
+		setTokens(res, accessToken, refreshToken)
+
+		// set status code
+		res.status(201)
+
+		// set response json
+		res.json({
+			accessToken,
+			userProfile: {
+				_id,
+				username,
+				name,
+			},
+		})
+	} catch (error) {
+		// if failed to find or load the User data.
+		console.log(error)
+		res.status(424)
+		throw new Error('Failed to load this data.')
 	}
 })
 
@@ -521,6 +597,7 @@ module.exports = {
 	registerUser,
 	loginUser,
 	OAuthGitHub,
+	googleHandler,
 	verifyAccount,
 	resendEmailVerification,
 	handleRefreshToken,
