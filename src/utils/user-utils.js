@@ -1,4 +1,6 @@
 const _ = require('lodash')
+const { faker } = require('@faker-js/faker')
+
 const User = require('../models/userModel')
 const Device = require('../models/deviceModel')
 const {
@@ -48,7 +50,7 @@ const getUserByGoogleEmail = async (googleUser) => {
 	if (user) {
 		user.googleUserId = googleUser.id
 		user.avatar = user.avatar ? user.avatar : googleUser.picture
-		user.status = 'Active'
+		user.isVerified = true
 		await user.save()
 
 		sendOverrideAccoutInfo(user.name, user.email, 'Google')
@@ -108,6 +110,36 @@ const findOrCreateDevice = async (res, userAgent, id, refreshToken) => {
 		res.status(401)
 		throw new Error('Unauthorized: Invalid Credentials.')
 	}
+
+	return device
+}
+
+const createDummy = async () => {
+	const firstName = faker.name.firstName()
+	const lastName = faker.name.lastName()
+
+	const dummy = await User.create({
+		name: faker.name.fullName({ firstName, lastName }),
+		email: faker.internet.exampleEmail(firstName, lastName),
+		avatar: faker.internet.avatar(),
+		username: faker.internet.userName(firstName, lastName),
+		isDummy: true,
+		isVerified: true,
+	})
+
+	return dummy
+}
+
+const createDummies = async (total) => {
+	if (total) {
+		Array(total)
+			.fill(0)
+			.forEach(async () => {
+				await createDummy()
+			})
+		return
+	}
+	await createDummy()
 }
 
 module.exports = {
@@ -118,4 +150,5 @@ module.exports = {
 	getUserByGitHubEmail,
 	checkUserDevices,
 	findOrCreateDevice,
+	createDummies,
 }

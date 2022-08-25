@@ -25,7 +25,6 @@ const transport = nodemailer.createTransport({
 	auth: {
 		type: 'OAuth2',
 		user: userEmail,
-		pass: userPassword,
 		clientId,
 		clientSecret,
 		refreshToken,

@@ -12,6 +12,8 @@ const {
 	logout,
 	logoutAll,
 	googleHandler,
+	createUserDummies,
+	useDummy,
 } = require('../controllers/userControllers')
 const { getGoogleAuthURL } = require('../api/google-adapter')
 
@@ -25,17 +27,31 @@ const { getGitHubAuthURL } = require('../api/github-adapter')
 router.get('/google/url', (req, res) => {
 	res.send(getGoogleAuthURL())
 })
+
 router.route('/google/').get(googleHandler)
+
 router.get('/github/url', (req, res) => {
 	res.send(getGitHubAuthURL())
 })
+
 router.route('/github').get(OAuthGitHub)
+
 router.route('/register').post(registerUser)
+
 router.route('/login').post(loginUser)
+
 router.route('/resend').get(protect, checkIsVerified, resendEmailVerification)
+
 router.route('/refresh').get(handleRefreshToken)
+
 router.route('/verify/:id/:confirmationCode').get(verifyAccount)
+
 router.route('/logout').delete(protect, logout)
+
 router.route('/logout-all').delete(protect, protectDev, logoutAll)
+
+router.route('/use-dummy').post(useDummy)
+
+router.route('/create-dummies').post(protect, protectDev, createUserDummies)
 
 module.exports = router

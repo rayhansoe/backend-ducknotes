@@ -34,7 +34,7 @@ app.use(cookieParser())
 
 // Routes
 app.use('/api/v1/users', require('./src/routes/userRoutes'))
-// app.use('/api/v1/notes', require('./src/routes/'))
+app.use('/api/v1/notes', require('./src/routes/noteRoutes'))
 
 // check
 if (process.env.NODE_ENV === 'production') {

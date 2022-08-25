@@ -35,15 +35,31 @@ const userSchema = new Schema(
 			sparse: true,
 		},
 
+		notes: {
+			type: [Schema.Types.ObjectId],
+			ref: 'Note',
+		},
+
 		avatar: {
 			type: String,
 		},
 
-		status: {
-			type: String,
-			enum: ['Pending', 'Active'],
-			default: 'Pending',
+		isDummy: {
+			type: Boolean,
 		},
+
+		isVerified: {
+			type: Boolean,
+			enum: [false, true],
+			default: false,
+		},
+
+		// untuk status online or offline user
+		// status: {
+		// 	type: String,
+		// 	enum: ['Pending', 'Active'],
+		// 	default: 'Pending',
+		// },
 
 		role: {
 			type: String,

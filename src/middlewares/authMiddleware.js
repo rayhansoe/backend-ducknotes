@@ -89,7 +89,7 @@ const semiProtected = asyncHandler(async (req, res, next) => {
 const protectDev = asyncHandler(async (req, res, next) => {
 	const user = req.user
 
-	if (!user.role === 'Admin' || !user.role === 'Dev') {
+	if (user.role !== 'Admin' && user.role !== 'Dev') {
 		res.status(403)
 		throw new Error('Forbidden!!!')
 	}

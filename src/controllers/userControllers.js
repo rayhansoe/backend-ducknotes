@@ -24,8 +24,76 @@ const {
 	findOrCreateDevice,
 	getUserByGoogleId,
 	getUserByGoogleEmail,
+	createDummies,
 } = require('../utils/user-utils')
 const { getGoogleUser } = require('../api/google-adapter')
+
+// @desc Create Dummy User
+// @route POST /api/users/create-dummies
+// @access DEV ONLY
+const createUserDummies = asyncHandler(async (req, res) => {
+	try {
+		await createDummies(5)
+		res.status(201)
+		res.json({
+			message: 'create dummy account success',
+		})
+	} catch (error) {
+		console.log(error)
+		res.status(424)
+		throw new Error('Failed to load this user data.')
+	}
+})
+
+// @desc Use Dummy Account
+// @route POST /api/users/use-dummy
+// @access PUBLIC
+const useDummy = asyncHandler(async (req, res) => {
+	const users = await User.find({ isDummy: true })
+
+	const user = users[Math.floor(Math.random() * users.length)]
+
+	try {
+		// collect user device from request headers
+		const userAgent = req.headers['user-agent'].toString()
+
+		// collect user data
+		const { _id, username, name } = user
+
+		// build tokens
+		const { accessToken, refreshToken } = buildTokens(user._id)
+
+		// check user devices
+		await checkUserDevices(res, _id)
+
+		// find or create user device
+		const device = await findOrCreateDevice(res, userAgent, _id, refreshToken)
+
+		// log discord
+		sendLog(`This Dummy account is logged in. ID: ${user.id}`)
+
+		// set tokens
+		setTokens(res, accessToken, device.token)
+
+		// set status code
+		res.status(201)
+
+		// set response json
+		res.json({
+			accessToken,
+			userProfile: {
+				_id,
+				username,
+				name,
+			},
+		})
+	} catch (error) {
+		// if failed to find or load the User data.
+		console.log(error)
+		res.status(424)
+		throw new Error('Failed to load this data.')
+	}
+})
 
 // @desc Register User
 // @route POST /api/users
@@ -167,13 +235,13 @@ const googleHandler = asyncHandler(async (req, res) => {
 		await checkUserDevices(res, _id)
 
 		// find or create user device
-		await findOrCreateDevice(res, userAgent, _id, refreshToken)
+		const device = await findOrCreateDevice(res, userAgent, _id, refreshToken)
 
 		// log discord
 		sendLog(`This account is logged in by Google service. ID: ${user.id}`)
 
 		// set tokens
-		setTokens(res, accessToken, refreshToken)
+		setTokens(res, accessToken, device.token)
 
 		// set status code
 		res.status(201)
@@ -240,13 +308,13 @@ const OAuthGitHub = asyncHandler(async (req, res) => {
 		await checkUserDevices(res, _id)
 
 		// find or create user device
-		await findOrCreateDevice(res, userAgent, _id, refreshToken)
+		const device = await findOrCreateDevice(res, userAgent, _id, refreshToken)
 
 		// log discord
 		sendLog(`This account is logged in by GitHub service. ID: ${user.id}`)
 
 		// set tokens
-		setTokens(res, accessToken, refreshToken)
+		setTokens(res, accessToken, device.token)
 
 		// set status code
 		res.status(201)
@@ -280,7 +348,13 @@ const loginUser = asyncHandler(async (req, res) => {
 	if (!user) user = await User.findOne({ email: text })
 
 	// check user
-	if (!user || !bcrypt.compare(password, user.password)) {
+	if (!user || !user.password) {
+		res.status(401)
+		throw new Error('Unauthorized: Invalid Credentials.')
+	}
+
+	// check user
+	if (!user || (user.password && !bcrypt.compare(password, user?.password))) {
 		res.status(401)
 		throw new Error('Unauthorized: Invalid Credentials.')
 	}
@@ -299,7 +373,7 @@ const loginUser = asyncHandler(async (req, res) => {
 		await checkUserDevices(res, _id)
 
 		// find or create user device
-		await findOrCreateDevice(res, userAgent, _id, refreshToken)
+		const device = await findOrCreateDevice(res, userAgent, _id, refreshToken)
 
 		// send login info to email user
 		sendLoginAccoutInfo(user.name, user.email)
@@ -308,7 +382,7 @@ const loginUser = asyncHandler(async (req, res) => {
 		sendLog(`This account is logged in. ID: ${user.id}`)
 
 		// set tokens
-		setTokens(res, accessToken, refreshToken)
+		setTokens(res, accessToken, device.token)
 
 		// set status code
 		res.status(201)
@@ -402,7 +476,7 @@ const verifyAccount = asyncHandler(async (req, res) => {
 		}
 
 		// if user is already active
-		if (user.status === 'Active') {
+		if (user.isVerified) {
 			res.status(200)
 			res.json({
 				message: 'Your account is already active.',
@@ -410,7 +484,7 @@ const verifyAccount = asyncHandler(async (req, res) => {
 		}
 
 		// activate the user
-		user.status = 'Active'
+		user.isVerified = true
 		await user.save()
 
 		// then delete saved confirmation code
@@ -603,4 +677,6 @@ module.exports = {
 	handleRefreshToken,
 	logout,
 	logoutAll,
+	createUserDummies,
+	useDummy,
 }
