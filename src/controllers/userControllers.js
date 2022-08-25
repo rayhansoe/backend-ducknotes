@@ -33,12 +33,20 @@ const { getGoogleUser } = require('../api/google-adapter')
 // @access DEV ONLY
 const createUserDummies = asyncHandler(async (req, res) => {
 	try {
+		const user = req.user
 		await createDummies(5)
+
+		// log discord
+		sendLog(`5 Dummies Account has been created. DEV ID: ${user.id}`)
+
 		res.status(201)
 		res.json({
 			message: 'create dummy account success',
 		})
 	} catch (error) {
+		// log discord
+		sendLog(`failed to create 5 Dummies Account. DEV ID: ${user.id}`)
+
 		console.log(error)
 		res.status(424)
 		throw new Error('Failed to load this user data.')
@@ -89,6 +97,10 @@ const useDummy = asyncHandler(async (req, res) => {
 		})
 	} catch (error) {
 		// if failed to find or load the User data.
+
+		// log discord
+		sendLog(`Failed to use This Dummy account. ID: ${user.id}`)
+
 		console.log(error)
 		res.status(424)
 		throw new Error('Failed to load this data.')
