@@ -1,5 +1,5 @@
 const asyncHandler = require('express-async-handler')
-const Note = require('../models/NoteModel')
+const Note = require('../models/noteModel')
 const { sendLog } = require('../utils/discord-utils')
 
 // @desc Set Note || Create Note
