@@ -15,6 +15,7 @@ const {
 	sendConfirmationEmail,
 	sendCreateAccoutInfo,
 	sendLoginAccoutInfo,
+	sendTryToLoginInfo,
 } = require('../utils/email-utils')
 const {
 	getUserByGitHubId,
@@ -365,8 +366,9 @@ const loginUser = asyncHandler(async (req, res) => {
 		throw new Error('Unauthorized: Invalid Credentials.')
 	}
 
-	// check user
-	if (!user || (user.password && !bcrypt.compare(password, user?.password))) {
+	// if user password false
+	if (user || (user.password && !bcrypt.compare(password, user?.password))) {
+		sendTryToLoginInfo(user.name, user.email)
 		res.status(401)
 		throw new Error('Unauthorized: Invalid Credentials.')
 	}

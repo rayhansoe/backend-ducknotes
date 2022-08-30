@@ -60,6 +60,20 @@ const sendLoginAccoutInfo = (name, email) => {
 		.catch((err) => console.log(err))
 }
 
+const sendTryToLoginInfo = (name, email) => {
+	transport
+		.sendMail({
+			from: userEmail,
+			to: email,
+			subject: 'Ada upaya login menggunakan email / akun ada!',
+			html: `<h1>Email Confirmation</h1>
+    <h2>Hello ${name}</h2>
+    <p>Ada upaya login menggunakan email / akun ada!</p>
+    </div>`,
+		})
+		.catch((err) => console.log(err))
+}
+
 const sendOverrideAccoutInfo = (name, email, provider) => {
 	transport
 		.sendMail({
@@ -94,4 +108,5 @@ module.exports = {
 	sendCreateAccoutInfo,
 	sendLoginAccoutInfo,
 	sendOverrideAccoutInfo,
+	sendTryToLoginInfo,
 }
